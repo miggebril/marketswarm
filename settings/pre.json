@@ -1,0 +1,12 @@
+{
+  "PrivateKeyPath": "settings/keys/private_key",
+  "PublicKeyPath": "settings/keys/public_key.pub",
+  "Database" : {
+  	"Username" : "sa",
+	"Password" : "maximum2",
+	"Host" : "localhost",
+	"Port" : "1433",
+	"DBName" : "Markets",
+	"Engine" : "mssql"
+  }
+}

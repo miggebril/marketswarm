@@ -13,10 +13,11 @@ import (
 	// "net/url"
 	"net/http"
 	"marketswarm/models"
+	"marketswarm/helpers"
+	"marketswarm/settings"
 	"marketswarm/lib/gorp"
 	"marketswarm/controllers"
 	//"net/smtp" email service
-	 "os"
 	// "strconv"
 	// "strings"
 	// "time"
@@ -28,12 +29,11 @@ func init() {
 
 var converter models.MarketswarmTypeConverter
 var dbmap *gorp.DbMap
-var db *sql.DB
 var database string
 var router *pat.Router
 //var auth *models.JWTAuthenticationBackend
 
-type handler func(http.ResponseWriter, *http.Request) error
+type handler func(http.ResponseWriter, *http.Request, *models.Context) error
 
 
 func (h handler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
@@ -44,9 +44,9 @@ func (h handler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	buf := new(httpbuf.Buffer)
 	log.Println(buf)
 
-	//ctx, _ := models.NewContext(req, database)
+	ctx, _ := models.NewContext(req, dbmap)
 
-	err := h(buf, req)
+	err := h(buf, req, ctx)
 	if err != nil {
 		log.Fatal("Error:", err.Error())
 	}
@@ -55,17 +55,25 @@ func (h handler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 
 
 func main() {
-	fmt.Printf("pid: %d\n", os.Getpid())
-	var dialect gorp.Dialect
 	var err error
+	var dialect gorp.Dialect
 	var db *sql.DB
 
-	u := "server=localhost;user id=sa;password=maximum2;database=Markets"
-	db, err = sql.Open("mssql", u)
-	if err != nil {
-		log.Fatal("Open connection failed:", err.Error())
+	settings.Init()
+	
+	switch settings.Get().Database["Engine"] {
+		case "mysql":
+			db, err = sql.Open(settings.Get().Database["Engine"], settings.Get().Database["Password"]+":"+settings.Get().Database["Password"]+"@("+settings.Get().Database["Host"]+":"+settings.Get().Database["Port"]+")/"+settings.Get().Database["DBName"])
+			dialect = gorp.MySQLDialect{"InnoDB", "UTF8"}
+		case "mssql":
+			log.Println("server="+settings.Get().Database["Host"]+";user id="+settings.Get().Database["Password"]+";password="+settings.Get().Database["Password"]+";database="+settings.Get().Database["DBName"]+";")
+			db, err = sql.Open(settings.Get().Database["Engine"], "server="+settings.Get().Database["Host"]+";user id="+settings.Get().Database["Username"]+";password="+settings.Get().Database["Password"]+";database="+settings.Get().Database["DBName"]+";")
+			dialect = gorp.SqlServerDialect{}
+		default:
+			log.Println("Error: Invalid dialect.")
 	}
-	defer db.Close()
+
+	helpers.CheckErr(err, "Error opening DB connection")
 
 	dbmap = &gorp.DbMap{Db: db, Dialect: dialect}
 	dbmap.TypeConverter = converter
@@ -75,12 +83,7 @@ func main() {
 	dbmap.TypeConverter = converter
 	
 	err = db.Ping()
-	if err != nil {
-		log.Fatal("Ping failed:", err.Error())
-	} else
-	{
-		fmt.Printf("DB connection successful\n")
-	}
+	helpers.CheckErr(err, "DB ping failed")
 
 	stmt, err := db.Prepare("exec Select_Traders")
 	if err != nil {

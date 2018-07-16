@@ -4,11 +4,6 @@ import (
     "encoding/json"
     "strings"
 )
- 
-type Broker struct {
-    BrokerID uint64 `json:"ID"`
-    Name string
-}
 
 type Counterparty struct {
     CounterpartyID uint64 `json:"ID"`
@@ -34,15 +29,6 @@ type ContractPeriodResponseContent struct {
 
 type ContractPeriodResponse struct {
     ContractPeriods []ContractPeriod `json:"ContractPeriods"`
-}
- 
-func (b *Broker) MarshalJSON() ([]byte, error) {
-    type Alias Broker
-    return json.Marshal(&struct {
-        *Alias
-    }{
-        Alias: (*Alias)(b),
-    })
 }
 
 func (c *Counterparty) MarshalJSON() ([]byte, error) {

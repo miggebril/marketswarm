@@ -1,67 +1,61 @@
- package models
+package models
 
-// import (
-//   "net/http"
-//   "crypto/rsa"
-//   "labix.org/v2/mgo"
-//   "labix.org/v2/mgo/bson"
-//   "log"
-// )
+import (
+  "log"
+  "fmt"
+  "net/http"
+  "marketswarm/helpers"
+  "marketswarm/lib/gorp"
+)
 
-// type Context struct {
-//   Database *mgo.Database
-//   User     *User
-//   Auth     *JWTAuthenticationBackend
-// }
+type Context struct {
+  DbMap   *gorp.DbMap
+  User    *Trader
+}
 
-// func (c *Context) Close() {
-//   c.Database.Session.Close()
-// }
+func (ctx Context) GetTrader(id int64) Trader {
+  var trader Trader
+  err := ctx.DbMap.SelectOne(&trader, "select * from users where ID=?", GetIdEncoded(id))
+  helpers.CheckErr(err, "Failed to get user")
+  return trader
+}
 
-// //C is a convenience function to return a collection from the context database.
-// func (c *Context) C(name string) *mgo.Collection {
-//   return c.Database.C(name)
-// }
+func (ctx Context) SetTrader(id int64) (error) {
+  stmt, err := ctx.DbMap.Db.Prepare("exec Select_Traders_By_Id")
+  if err != nil {
+    log.Fatal("Prepare failed:", err.Error())
+    return err
+  }
+  defer stmt.Close()
 
-// func NewContext(req *http.Request, session *mgo.Session, database string, auth *JWTAuthenticationBackend) (*Context, error) {
-//   ctx := &Context{
-//       Database: session.Clone().DB(database),
-//       Auth: auth,
-//   }
+  row := stmt.QueryRow() 
   
-//   return ctx, nil
-// }
+  err = row.Scan(&ctx.User.TraderID, &ctx.User.UserName, &ctx.User.Email, &ctx.User.Password, &ctx.User.IsVerified)
+  if err != nil {
+    log.Fatal("Scan failed:", err.Error())
+    return err
+  }
 
-// func (c *Context) GetUser(id bson.ObjectId) (User, error) {
-//   coll := c.C("users")
-//   query := coll.Find(bson.M{"_id":id}).Sort("-timestamp")
-//   log.Println("GetUser:", id)
-//   var u User
-//   err := query.One(&u)
-//   return u, err
-// }
+  fmt.Printf("id:%d\n", ctx.User.TraderID)
+  fmt.Printf("email:%s\n", ctx.User.Email)
+  return nil
+}
 
-// func (c *Context) SetUser(id bson.ObjectId) (error) {
-//   coll := c.C("users")
-//   query := coll.Find(bson.M{"_id":id}).Sort("-timestamp")
-//   log.Println("GetUser:", id)
-//   return query.One(&c.User)
-// }
+func (ctx *Context) LookupTrader(id int64) Trader {
+  if id == 0 {
+    return Trader{UserName: ""}
+  }
+  var user Trader
+  err := ctx.DbMap.SelectOne(&user, "select * from users where ID=?", GetIdEncoded(id))
+  helpers.CheckErr(err, "Failed to lookup user")
+  return user
 
-// func (c *Context) GetOneUser() (User, error) {
-//   coll := c.C("users")
-//   query := coll.Find(bson.M{}).Sort("-timestamp")
-//   var u User
-//   err := query.One(&u)
-//   return u, err
-// }
+}
 
-// type JWTAuthenticationBackend struct {
-//   PrivateKey *rsa.PrivateKey
-//   PublicKey  *rsa.PublicKey
-// }
-
-// const (
-//   tokenDuration = 72
-//   expireOffset  = 3600
-// )
+func NewContext(req *http.Request, dbmap *gorp.DbMap) (*Context, error) {
+  ctx := &Context{
+    DbMap:   dbmap,
+  }
+  
+  return ctx, nil
+}
